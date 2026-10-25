@@ -2,7 +2,7 @@
 
 飞牛私有云（FNOS）平台的第三方音乐客户端。通过飞牛 NAS 自带的音乐服务 API获取音乐库、播放流和歌词数据，提供完整的在线音乐播放体验。
 
-基于 [NagoMusic](https://github.com/Keduoli03/NagoMusic) 项目深度魔改适配。
+本项目在 [kuilei0926/FeiNiuMusic](https://github.com/kuilei0926/FeiNiuMusic) 项目的基础上克隆二次开发而来；FeiNiuMusic 本身则基于 [NagoMusic](https://github.com/Keduoli03/NagoMusic) 项目深度魔改适配。
 
 ## 功能
 
@@ -223,7 +223,9 @@ flutter build windows --release
 
 ## 开源协议
 
-本项目基于上游 [NagoMusic](https://github.com/Keduoli03/NagoMusic) 项目的开源协议发布。
+本项目基于 [kuilei0926/FeiNiuMusic](https://github.com/kuilei0926/FeiNiuMusic) 克隆二次开发；FeiNiuMusic 与其上游 [NagoMusic](https://github.com/Keduoli03/NagoMusic) 均未随仓库附许可证文件，相应代码权利归属各自作者。
+
+本项目新增的内置在线歌词引擎（`plugins/online_lyrics`）以 [GPL-3.0-only](https://www.gnu.org/licenses/gpl-3.0.html) 发布，移植来源：
 
 内置在线歌词引擎移植自 [fn-music](https://github.com/pany4321/fn-music)（[GPL-3.0-only](https://www.gnu.org/licenses/gpl-3.0.html)）的 `core/lyrics` 模块（其上游为 [LDDC](https://github.com/chenmozhijin/LDDC)；LRCLIB 按[官方文档](https://lrclib.net/docs)实现）。
 
@@ -233,7 +235,8 @@ flutter build windows --release
 
 ## 致谢
 
-- [NagoMusic](https://github.com/Keduoli03/NagoMusic) — 本项目的基础
+- [kuilei0926/FeiNiuMusic](https://github.com/kuilei0926/FeiNiuMusic) — 本项目的直接基础（克隆二次开发）
+- [NagoMusic](https://github.com/Keduoli03/NagoMusic) — FeiNiuMusic 的上游基础
 - [Lyrico](https://github.com/Replica0110/Lyrico) — 音乐数据匹配 / 歌词格式（Apache-2.0）
 - [musicdl](https://github.com/CharlesPikachu/musicdl) — 后端数据源搜索代码来源
 - [fn-music](https://github.com/pany4321/fn-music) / [LDDC](https://github.com/chenmozhijin/LDDC) — 内置在线歌词引擎（GPL-3.0）
