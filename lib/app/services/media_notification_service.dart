@@ -133,6 +133,11 @@ class _FeiNiuAudioHandler extends BaseAudioHandler
   static const String _actionFavorite = 'favorite';
   String? _currentLyricLine;
   String? _lastSongId;
+
+  /// 车载歌词行发布的节流闸 + 尾沿定时器（见 CarLyricsPublishGate）：
+  /// 限制 AVRCP METADATA_CHANGED 推送频率，密集歌词行合并发布。
+  final CarLyricsPublishGate _carLyricGate = CarLyricsPublishGate();
+  Timer? _carLyricPublishTimer;
   bool _isFavorite = false;
   String? _lastQueueKey;
   List<String> _publishedQueueIds = const <String>[];
@@ -1017,6 +1022,10 @@ class _FeiNiuAudioHandler extends BaseAudioHandler
     if (songChanged) {
       final song = snap.song;
       _cachedCoverUri = null;
+      // 切歌重置歌词节流：新歌首行立即发布，不继承上一首的间隔窗口；
+      // 并取消可能挂着的尾沿发布（其重读状态后会被 itemKey 去重吞掉）。
+      _carLyricPublishTimer?.cancel();
+      _carLyricGate.reset();
       if (song != null && song.coverId != null && song.coverId!.isNotEmpty) {
         _lastCoverId = song.coverId;
         if (io.Platform.isAndroid) {
@@ -1237,10 +1246,42 @@ class _FeiNiuAudioHandler extends BaseAudioHandler
 
   void _onLyricLineChanged() {
     _currentLyricLine = LyricsService.instance.currentLineText.value;
-    _syncMediaItem();
+    _syncCarLyricMediaItem();
+  }
+
+  /// 歌词行变化驱动的 MediaItem 发布（节流）。
+  ///
+  /// 仅在歌词行会真正进入 MediaItem（车载歌词开启且播放中）时走闸门：
+  /// 前沿立即放行、间隔内合并为一次尾沿发布（总是发最新行，重新读取
+  /// 当前状态，不携带过期行）。其余场景（开关关闭/暂停）直接发布真实
+  /// 歌名，行为与节流前一致。
+  void _syncCarLyricMediaItem() {
+    final active = MediaNotificationSettings.carBluetoothLyrics.value &&
+        player.snapshot.value.isPlaying;
+    if (!active) {
+      _carLyricPublishTimer?.cancel();
+      _syncMediaItem();
+      return;
+    }
+    final now = DateTime.now();
+    if (_carLyricGate.tryAcquire(now)) {
+      _carLyricPublishTimer?.cancel();
+      _syncMediaItem();
+      return;
+    }
+    final wait = _carLyricGate.remainingAfter(now);
+    _carLyricPublishTimer?.cancel();
+    _carLyricPublishTimer = Timer(wait, () {
+      _carLyricGate.markPublished(DateTime.now());
+      _syncMediaItem();
+    });
   }
 
   void _onNotificationSettingsChanged() {
+    // 车载歌词开关切换是节流的逃逸路径：重置闸门并取消尾沿发布，
+    // 让「关闭 → 真实歌名」立即上屏，不被间隔窗口拖住。
+    _carLyricPublishTimer?.cancel();
+    _carLyricGate.reset();
     if (!MediaNotificationSettings.showLyrics.value) {
       _currentLyricLine = null;
     } else {

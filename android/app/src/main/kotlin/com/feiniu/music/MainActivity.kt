@@ -383,12 +383,26 @@ class MainActivity : AudioServiceActivity() {
         }
     }
 
-    /** 是否为 Android TV 设备：uiMode 类型为 TELEVISION，或设备声明 LEANBACK 特性。 */
+    /**
+     * 是否为 TV / 车机环境。
+     *
+     * - uiMode 类型为 TELEVISION（Android TV）或 CAR（车机 UI 模式，含副厂
+     *   车机 ROM 与部分手机驾驶模式）；
+     * - 或声明 LEANBACK 特性（Play Store 判定 TV 的权威信号）；
+     * - 或声明 automotive 设备类型（Android Automotive OS 车机）。
+     *
+     * 命中任一即返回 true：TV 布局 + 旋钮/方向盘方向键焦点导航对两类
+     * 大屏遥控设备同样适用。误判可由 App 内「自动识别 TV / 车机」开关关闭。
+     */
     private fun isTvDevice(): Boolean {
         val uiMode = resources.configuration.uiMode and
             android.content.res.Configuration.UI_MODE_TYPE_MASK
         return uiMode == android.content.res.Configuration.UI_MODE_TYPE_TELEVISION ||
-            packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK)
+            uiMode == android.content.res.Configuration.UI_MODE_TYPE_CAR ||
+            packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK) ||
+            // FEATURE_AUTOMOTIVE 常量（"android.hardware.type.automotive"），
+            // 用字面量避免对 API 常量的编译版本依赖。
+            packageManager.hasSystemFeature("android.hardware.type.automotive")
     }
 
     /**

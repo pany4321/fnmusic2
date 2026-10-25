@@ -3,17 +3,22 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-/// Android TV 环境检测。
+/// TV / 车机环境检测。
 ///
-/// 目标：同一个 APK 同时运行在手机/平板与 Android TV 上。TV 端检测到后
-/// 自动切换 TV 布局 + 遥控器方向键导航，手机端行为完全不受影响。
+/// 目标：同一个 APK 同时运行在手机/平板、Android TV 与车机上。TV/车机端
+/// 检测到后自动切换 TV 布局（大字大按钮）+ 旋钮/遥控器/方向盘方向键导航，
+/// 手机端行为完全不受影响。
 ///
 /// 检测策略（hybrid）：
 /// 1. [setOverride] 测试/开发覆盖 —— 非 null 时直接短路；
-/// 2. 原生 MethodChannel 查询 —— `uiMode == TELEVISION` 或
-///    `hasSystemFeature(FEATURE_LEANBACK)`，这是 Play Store 使用的权威信号；
+/// 2. 原生 MethodChannel 查询 —— `uiMode == TELEVISION/CAR`、LEANBACK 或
+///    automotive 特性（原生 `MainActivity.isTvDevice` 实现）。车机与 TV 共用
+///    同一套焦点导航与大屏布局；
 /// 3. 纯 Dart 启发式回退 —— 通道失败/非 Android 时用「横屏 + 大屏」近似，
 ///    仅用于开发机验证，不参与真机判断。
+///
+/// 手机被驾驶类 App 置成 CAR uiMode 会误入 TV 布局：用户可在设置页关闭
+/// 「自动识别 TV / 车机」（AppLayoutSettings.disableTvAutoDetect）。
 class TvDetection {
   TvDetection._();
 

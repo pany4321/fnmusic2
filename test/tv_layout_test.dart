@@ -271,4 +271,28 @@ void main() {
       expect(orientations.length, 2);
     });
   });
+    group('disableTvAutoDetect（车机误判逃生开关）', () {
+      test('自动检测开 + 关闭自动识别 → tvMode=false（手动强制仍可开启）', () {
+        TvDetectionAutoValue.value = true;
+        AppLayoutSettings.disableTvAutoDetect.value = true;
+        AppLayoutSettings.forceTvMode.value = false;
+        AppLayoutSettings.syncTvMode();
+        expect(AppLayoutSettings.tvMode.value, isFalse);
+
+        // 手动强制优先级最高：自动识别关闭也挡不住强制开。
+        AppLayoutSettings.forceTvMode.value = true;
+        AppLayoutSettings.syncTvMode();
+        expect(AppLayoutSettings.tvMode.value, isTrue);
+      });
+
+      test('自动识别关闭的偏好随 ensureLoaded 恢复', () async {
+        SharedPreferences.setMockInitialValues({
+          'setting_disable_tv_auto_detect': true,
+        });
+        AppLayoutSettings.resetForTest();
+        await AppLayoutSettings.ensureLoaded();
+        expect(AppLayoutSettings.disableTvAutoDetect.value, isTrue);
+      });
+    });
+
 }

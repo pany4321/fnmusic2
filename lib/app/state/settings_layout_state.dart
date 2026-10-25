@@ -9,6 +9,7 @@ class AppLayoutSettings {
   static const String _prefsTabletMode = 'setting_tablet_mode';
   static const String _prefsNavigationStyle = 'setting_navigation_style';
   static const String _prefsForceTvMode = 'setting_force_tv_mode';
+  static const String _prefsDisableTvAutoDetect = 'setting_disable_tv_auto_detect';
   static const String _prefsTvUiScaleOverride = 'setting_tv_ui_scale_override';
   static const String _prefsTvEdgeHintShown = 'setting_tv_edge_hint_shown';
   static const String _prefsTrackChangeNotify = 'setting_track_change_notify';
@@ -32,6 +33,13 @@ class AppLayoutSettings {
   /// 供开发/调试：在手机或非 TV 设备上手动开启 TV 布局 + 遥控器焦点导航，
   /// 方便直接预览 TV 页面效果。与自动检测是「或」关系。
   static final ValueNotifier<bool> forceTvMode = ValueNotifier(false);
+
+  /// 关闭「TV / 车机环境」自动识别（持久化）。
+  ///
+  /// 自动识别现覆盖 Android TV 与车机（uiMode=CAR / automotive 特性）。
+  /// 个别手机被驾驶模式 App 置成 CAR uiMode 会误入 TV 布局 —— 此开关是
+  /// 用户的逃生通道：关闭后仅剩 [forceTvMode] 手动强制生效。
+  static final ValueNotifier<bool> disableTvAutoDetect = ValueNotifier(false);
 
   /// TV 模式：由 [TvDetection] 自动检测，或用户手动强制开启。
   /// 由 [syncTvMode] 计算合并，不直接持久化（forceTvMode 才是持久化来源）。
@@ -218,6 +226,8 @@ class AppLayoutSettings {
       orElse: () => AppNavigationStyle.bottomBar,
     );
     forceTvMode.value = prefs.getBool(_prefsForceTvMode) ?? false;
+    disableTvAutoDetect.value =
+        prefs.getBool(_prefsDisableTvAutoDetect) ?? false;
     final savedTvScale = prefs.getDouble(_prefsTvUiScaleOverride);
     tvUiScaleOverride.value = savedTvScale?.clamp(0.8, 2.0);
     _tvEdgeHintShown = prefs.getBool(_prefsTvEdgeHintShown) ?? false;
@@ -248,12 +258,14 @@ class AppLayoutSettings {
     return true;
   }
 
-  /// 合并自动检测与手动强制：`tvMode = 自动检测 || 手动强制`。
+  /// 合并手动强制、自动识别与其关闭开关：
+  /// `tvMode = forceTvMode || (自动检测 && !disableTvAutoDetect)`。
   ///
   /// main() 在 [TvDetection.ensureLoaded] 后调用一次；设置页开关切换时再调用，
   /// 让 TV 布局/焦点系统即时生效（各监听方已用 ValueListenableBuilder 订阅）。
   static void syncTvMode() {
-    tvMode.value = TvDetectionAutoValue.value || forceTvMode.value;
+    tvMode.value = forceTvMode.value ||
+        (TvDetectionAutoValue.value && !disableTvAutoDetect.value);
   }
 
   static Future<void> setTabletMode(bool enabled) async {
@@ -266,6 +278,13 @@ class AppLayoutSettings {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_prefsForceTvMode, enabled);
     forceTvMode.value = enabled;
+    syncTvMode();
+  }
+
+  static Future<void> setDisableTvAutoDetect(bool disabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_prefsDisableTvAutoDetect, disabled);
+    disableTvAutoDetect.value = disabled;
     syncTvMode();
   }
 
@@ -319,6 +338,7 @@ class AppLayoutSettings {
     tabletMode.value = false;
     navigationStyle.value = AppNavigationStyle.bottomBar;
     forceTvMode.value = false;
+    disableTvAutoDetect.value = false;
     tvMode.value = false;
     tvUiScaleOverride.value = null;
     _tvEdgeHintShown = true;

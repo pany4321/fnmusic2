@@ -21,3 +21,50 @@ String? carLyricsTitleOverride({
   final line = currentCarLyricLine?.trim() ?? '';
   return line.isEmpty ? null : line;
 }
+
+/// 车载歌词行的发布节流闸（前沿放行 + 尾沿合并）。
+///
+/// 每行歌词变化都会触发一次 MediaItem 发布，即一次 AVRCP
+/// METADATA_CHANGED 推送；快歌/短行密集时对老车机是元数据风暴（每次重置
+/// 跑马灯、部分车机整屏刷新）。闸门保证两次发布间隔不小于 [minInterval]：
+/// 间隔内的新行合并为一次尾沿发布（总是发最新行）。
+///
+/// 纯逻辑类（时间由调用方注入），测试见 test/car_lyrics_publish_gate_test.dart。
+class CarLyricsPublishGate {
+  CarLyricsPublishGate({this.minInterval = const Duration(seconds: 1)});
+
+  /// 两次发布的最小间隔。
+  final Duration minInterval;
+
+  DateTime? _lastPublishedAt;
+
+  /// 立即发布是否放行（放行即记录发布时刻）。
+  bool tryAcquire(DateTime now) {
+    final last = _lastPublishedAt;
+    if (last == null || now.difference(last) >= minInterval) {
+      _lastPublishedAt = now;
+      return true;
+    }
+    return false;
+  }
+
+  /// 距下一次可发布的剩余等待（调度尾沿发布用）。
+  Duration remainingAfter(DateTime now) {
+    final last = _lastPublishedAt;
+    if (last == null) return Duration.zero;
+    final elapsed = now.difference(last);
+    if (elapsed >= minInterval) return Duration.zero;
+    return minInterval - elapsed;
+  }
+
+  /// 记录一次发布（尾沿定时器触发时调用）。
+  void markPublished(DateTime now) {
+    _lastPublishedAt = now;
+  }
+
+  /// 逃逸通道：车载歌词关闭/暂停等场景直接发布时同步记录，
+  /// 避免紧随其后的歌词行被误判为「间隔内」。
+  void reset() {
+    _lastPublishedAt = null;
+  }
+}

@@ -78,4 +78,56 @@ void main() {
       expect(override, '人生短短几个秋');
     });
   });
+
+  group('CarLyricsPublishGate', () {
+    test('首次发布立即放行，间隔内拒绝并给出剩余等待', () {
+      final gate = CarLyricsPublishGate(
+        minInterval: const Duration(seconds: 1),
+      );
+      final t0 = DateTime(2026, 1, 1, 12, 0, 0);
+      expect(gate.tryAcquire(t0), isTrue);
+      final t500 = t0.add(const Duration(milliseconds: 500));
+      expect(gate.tryAcquire(t500), isFalse);
+      expect(
+        gate.remainingAfter(t500),
+        const Duration(milliseconds: 500),
+      );
+    });
+
+    test('间隔期满后再次放行；markPublished 重置窗口', () {
+      final gate = CarLyricsPublishGate(
+        minInterval: const Duration(seconds: 1),
+      );
+      final t0 = DateTime(2026, 1, 1, 12, 0, 0);
+      gate.tryAcquire(t0);
+      final t999 = t0.add(const Duration(milliseconds: 999));
+      expect(gate.tryAcquire(t999), isFalse);
+      // 尾沿发布完成时刻
+      gate.markPublished(t0.add(const Duration(milliseconds: 1000)));
+      final t1500 = t0.add(const Duration(milliseconds: 1500));
+      expect(gate.tryAcquire(t1500), isFalse); // 距尾沿仅 500ms
+      expect(
+        gate.remainingAfter(t1500),
+        const Duration(milliseconds: 500),
+      );
+      final t2500 = t0.add(const Duration(milliseconds: 2500));
+      expect(gate.tryAcquire(t2500), isTrue);
+    });
+
+    test('切歌/开关切换 reset 后首行立即发布', () {
+      final gate = CarLyricsPublishGate(
+        minInterval: const Duration(seconds: 1),
+      );
+      final t0 = DateTime(2026, 1, 1, 12, 0, 0);
+      gate.tryAcquire(t0);
+      gate.reset();
+      final t100 = t0.add(const Duration(milliseconds: 100));
+      expect(gate.tryAcquire(t100), isTrue);
+      // 刚放行后，距下一次发布需再等满一个完整间隔。
+      expect(
+        gate.remainingAfter(t100),
+        const Duration(seconds: 1),
+      );
+    });
+  });
 }

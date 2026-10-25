@@ -360,17 +360,35 @@ class _AppAppearanceSettingsPageState extends State<AppAppearanceSettingsPage> {
                   );
                 },
               ),
-              // TV 模式：手动强制开启 TV 布局 + 遥控器焦点导航。
+              // TV 模式：手动强制开启 TV 布局 + 遥控器/车机旋钮焦点导航。
               // 开发/调试用：在手机或非 TV 设备上直接预览 TV 页面效果。
               ValueListenableBuilder<bool>(
                 valueListenable: AppLayoutSettings.forceTvMode,
                 builder: (context, enabled, _) {
                   return AppSettingSwitchTile(
                     title: 'TV 模式',
-                    subtitle: '强制 TV 布局与遥控器操作',
+                    subtitle: '强制 TV 布局与遥控器操作（优先于自动识别）',
                     value: enabled,
                     onChanged: (value) {
                       AppLayoutSettings.setForceTvMode(value);
+                    },
+                  );
+                },
+              ),
+              const Divider(height: 1),
+              // 自动识别 TV / 车机：默认开启；误判（如手机被驾驶类 App 置成
+              // CAR uiMode）时用户可关闭，仅保留上方手动强制开关。
+              ValueListenableBuilder<bool>(
+                valueListenable: AppLayoutSettings.disableTvAutoDetect,
+                builder: (context, disabled, _) {
+                  return AppSettingSwitchTile(
+                    title: '自动识别 TV / 车机',
+                    subtitle: disabled
+                        ? '已关闭：仅在上方手动开启 TV 模式时生效'
+                        : '检测到 TV 或车机环境时自动启用大屏布局与焦点导航',
+                    value: !disabled,
+                    onChanged: (value) {
+                      AppLayoutSettings.setDisableTvAutoDetect(!value);
                     },
                   );
                 },
