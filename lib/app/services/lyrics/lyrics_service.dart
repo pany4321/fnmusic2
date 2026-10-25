@@ -16,6 +16,7 @@ import 'lyrics_parser.dart';
 import 'lyrics_repository.dart';
 import 'lyricon_service.dart';
 import 'meizu_lyrics_service.dart';
+import 'online_lyrics_gateway.dart';
 
 enum LyricsLoadStatus { idle, loading, loaded, empty, failed }
 
@@ -228,11 +229,11 @@ class LyricsService {
       if (seq != _loadSeq) return;
 
       if (lrc == null || lrc.trim().isEmpty) {
-        // 无歌词：若开启「播放无歌词音乐时自动搜索」，通过服务端增强数据源搜索。
-        // 需后端（FnMusicEnhance）可达。
+        // 无歌词：若开启「播放无歌词音乐时自动搜索」则联网取词。
+        // 优先内置在线源（应用内直连网易云/QQ/酷狗/LRCLIB，无需服务端）；
+        // 未命中且服务端增强（FnMusicEnhance）可达时，再走数据源插件。
         var searched = lrc;
-        if (LyricAutoSearchSettings.enabled.value &&
-            SongMatchService.instance.available) {
+        if (LyricAutoSearchSettings.enabled.value) {
           searched = await _searchLyricForSong(song);
           if (seq != _loadSeq) return;
         }
@@ -297,39 +298,66 @@ class LyricsService {
     }
   }
 
-  /// 通过数据源插件自动搜索歌曲歌词（「播放无歌词音乐时自动搜索」）。
+  /// 联网搜索歌曲歌词（「播放无歌词音乐时自动搜索」）。
+  ///
+  /// 优先内置在线歌词源（网易云/QQ/酷狗/LRCLIB 直连，无需服务端增强）；
+  /// 未命中且已配置服务端增强时，再按客户端启用平台走数据源插件。
   ///
   /// 命中后写入本地歌词缓存；「搜索到后自动回写到 NAS」开启且服务端增强
   /// （FnMusicEnhance）可用（已配置地址）时，再同步写入 NAS。
   /// 返回 LRC 文本；未命中返回 null。
   Future<String?> _searchLyricForSong(SongEntity song) async {
-    try {
-      final lyrics = await SongMatchService.instance.fetchLyrics(
-        title: song.title,
-        artist: song.artistDisplayName,
-        album: song.albumDisplayName == '未知专辑' ? '' : song.albumDisplayName,
-        duration: song.durationMs ?? 0,
+    final title = song.title;
+    final artist = song.artistDisplayName;
+    final album =
+        song.albumDisplayName == '未知专辑' ? '' : song.albumDisplayName;
+    final duration = song.durationMs ?? 0;
+
+    // ① 内置在线源（免后端直连）。
+    if (LyricAutoSearchSettings.useBuiltinOnline.value) {
+      final lyrics = await OnlineLyricsGateway.instance.fetchLyricsText(
+        title: title,
+        artist: artist,
+        album: album,
+        durationMs: duration,
       );
-      if (lyrics == null || lyrics.trim().isEmpty) return null;
-
-      // 命中歌词写入本地缓存（后续播放/搜索不再走网络）。
-      await _repo.saveLrcToCache(song.id, lyrics);
-
-      // 回写开关开启且服务端增强已配置地址时，同步写入 NAS。
-      // 真正可达性由 saveLyrics 内部 HTTP 决定（失败已 try/catch 静默）。
-      if (LyricAutoSearchSettings.writeBack.value &&
-          LyricCompanionSettings.enabled.value &&
-          LyricCompanionService.instance.available) {
-        try {
-          await LyricCompanionService.instance.saveLyrics(song.id, lyrics);
-        } catch (e) {
-          debugPrint('[Lyrics] ${song.title} 自动搜索歌词写入 NAS 失败: $e');
-        }
+      if (lyrics != null && lyrics.trim().isNotEmpty) {
+        await _cacheSearchHit(song, lyrics);
+        return lyrics;
       }
-      return lyrics;
-    } catch (e) {
-      debugPrint('[Lyrics] ${song.title} 自动搜索歌词失败: $e');
-      return null;
+    }
+
+    // ② 服务端增强数据源插件（已配置地址才可用）。
+    if (SongMatchService.instance.available) {
+      try {
+        final lyrics = await SongMatchService.instance.fetchLyrics(
+          title: title,
+          artist: artist,
+          album: album,
+          duration: duration,
+        );
+        if (lyrics != null && lyrics.trim().isNotEmpty) {
+          await _cacheSearchHit(song, lyrics);
+          return lyrics;
+        }
+      } catch (e) {
+        debugPrint('[Lyrics] ${song.title} 数据源插件搜索歌词失败: $e');
+      }
+    }
+    return null;
+  }
+
+  /// 命中歌词写入本地缓存；回写开关开启且服务端增强已配置时同步写入 NAS。
+  Future<void> _cacheSearchHit(SongEntity song, String lyrics) async {
+    await _repo.saveLrcToCache(song.id, lyrics);
+    if (LyricAutoSearchSettings.writeBack.value &&
+        LyricCompanionSettings.enabled.value &&
+        LyricCompanionService.instance.available) {
+      try {
+        await LyricCompanionService.instance.saveLyrics(song.id, lyrics);
+      } catch (e) {
+        debugPrint('[Lyrics] ${song.title} 自动搜索歌词写入 NAS 失败: $e');
+      }
     }
   }
 

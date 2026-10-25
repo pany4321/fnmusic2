@@ -1,0 +1,15 @@
+name: online_lyrics
+description: "内置多源在线歌词获取：网易云 / QQ 音乐 / 酷狗 / LRCLIB 直连搜索与取词"
+publish_to: "none"
+version: 1.0.0
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  dio: ^5.4.0
+  pointycastle: ^3.9.1
+
+dev_dependencies:
+  crypto: ^3.0.7
+  test: ^1.25.0

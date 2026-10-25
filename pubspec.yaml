@@ -48,6 +48,8 @@ dependencies:
   photo_manager: ^3.2.0
   flutter_lyric:
     path: plugins/flutter_lyric
+  online_lyrics:
+    path: plugins/online_lyrics
   webdav_client: ^1.2.2
   sqflite: ^2.4.2
   path: ^1.9.1

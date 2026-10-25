@@ -1,0 +1,3 @@
+# Dart/Flutter 包内不提交依赖锁文件（由宿主应用统一锁定）
+pubspec.lock
+.dart_tool/

@@ -135,13 +135,29 @@ class _MetadataMatchSettingsPageState extends State<MetadataMatchSettingsPage> {
                             AppSettingSwitchTile(
                               title: '播放无歌词音乐时自动搜索',
                               subtitle: enabled
-                                  ? '播放时自动通过数据源搜索并应用歌词'
+                                  ? '播放时自动搜索并应用歌词（内置在线源优先）'
                                   : '播放时遇到无歌词歌曲自动搜索歌词',
                               value: enabled,
                               onChanged: (value) =>
                                   LyricAutoSearchSettings.setEnabled(value),
                             ),
                             if (enabled) ...[
+                              const Divider(height: 1),
+                              ValueListenableBuilder<bool>(
+                                valueListenable:
+                                    LyricAutoSearchSettings.useBuiltinOnline,
+                                builder: (context, builtin, _) {
+                                  return AppSettingSwitchTile(
+                                    title: '内置在线歌词源',
+                                    subtitle: builtin
+                                        ? '应用内直连网易云/QQ/酷狗/LRCLIB，无需服务端增强'
+                                        : '仅通过已配置的服务端增强数据源搜索',
+                                    value: builtin,
+                                    onChanged: (value) => LyricAutoSearchSettings
+                                        .setUseBuiltinOnline(value),
+                                  );
+                                },
+                              ),
                               const Divider(height: 1),
                               ValueListenableBuilder<bool>(
                                 valueListenable:

@@ -25,6 +25,7 @@
 ### 歌词与通知
 
 - **歌词展示** — LRC 歌词（含翻译行解析）与歌曲联动
+- **内置在线歌词源** — 播放无歌词歌曲时应用内直连网易云 / QQ 音乐 / 酷狗 / LRCLIB 自动搜索取词（无需自建服务端增强），支持逐字（QRC/YRC/KRC）、翻译与注音，命中可回写 NAS
 - **车载蓝牙歌词** — 通过 AVRCP TITLE 向车载系统传输当前歌词行
 - **状态栏歌词** — 支持魅族 / Lyricon 可选方案
 - **媒体通知** — 通知栏播放控制，使用本地封面（携带 Cookie 认证的封面无法直连，自动换用缓存文件）
@@ -78,6 +79,7 @@
 - 引入双播放器架构（系统解码 + FFmpeg 兜底），扩展无损格式支持
 - 新增 TV / 平板自适应布局与遥控器焦点导航
 - 净化和精简上游冗余代码，适配飞牛场景
+- 内置多源在线歌词引擎（`plugins/online_lyrics`，应用内直连，不依赖服务端增强）
 
 ## 适用平台
 
@@ -223,6 +225,8 @@ flutter build windows --release
 
 本项目基于上游 [NagoMusic](https://github.com/Keduoli03/NagoMusic) 项目的开源协议发布。
 
+内置在线歌词引擎移植自 [fn-music](https://github.com/pany4321/fn-music)（[GPL-3.0-only](https://www.gnu.org/licenses/gpl-3.0.html)）的 `core/lyrics` 模块（其上游为 [LDDC](https://github.com/chenmozhijin/LDDC)；LRCLIB 按[官方文档](https://lrclib.net/docs)实现）。
+
 音乐数据匹配功能移植自 [Lyrico](https://github.com/Replica0110/Lyrico)（[Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0)）：
 - 歌词格式（逐字 / 增强逐字 / 逐行 / TTML，含翻译、罗马音）对齐 Lyrico 的 `LrcDocumentFormat`；
 - 后端数据源搜索逻辑移植自 [musicdl](https://github.com/CharlesPikachu/musicdl)（在 FnMusicEnhance 中实现）。
@@ -232,4 +236,5 @@ flutter build windows --release
 - [NagoMusic](https://github.com/Keduoli03/NagoMusic) — 本项目的基础
 - [Lyrico](https://github.com/Replica0110/Lyrico) — 音乐数据匹配 / 歌词格式（Apache-2.0）
 - [musicdl](https://github.com/CharlesPikachu/musicdl) — 后端数据源搜索代码来源
+- [fn-music](https://github.com/pany4321/fn-music) / [LDDC](https://github.com/chenmozhijin/LDDC) — 内置在线歌词引擎（GPL-3.0）
 - [HyperLyric](https://github.com/limczhh/HyperLyric) — 焦点通知 / 灵动岛 API 及 Shizuku 绕过白名单实现等移植来源

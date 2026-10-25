@@ -14,6 +14,7 @@ import '../../app/utils/image_crop_helper.dart';
 import '../../app/services/feiniu/api_client.dart';
 import '../../app/services/feiniu/api_models.dart';
 import '../../app/services/lyrics/lyric_companion_service.dart';
+import '../../app/services/lyrics/online_lyrics_gateway.dart';
 import '../../app/services/companion/companion_error.dart';
 import '../../app/services/song_match/backend_match_client.dart';
 import '../../app/services/song_match/song_match_models.dart';
@@ -444,7 +445,15 @@ class _SongEditPageState extends State<SongEditPage> {
             await LyricCompanionService.instance.checkConnected();
         final kwTitle = selected.title.isNotEmpty ? selected.title : _titleController.text.trim();
         final kwArtist = selected.artist.isNotEmpty ? selected.artist : _artists.map((a) => a.name).join(' ');
-        prefetchedLyrics = await SongMatchService.instance.fetchLyrics(
+        // 内置在线源优先（免服务端）；未命中再走数据源插件按候选平台取词。
+        // 时长（毫秒）参与候选评分与逐字可信判定，与批量匹配契约同单位。
+        prefetchedLyrics = await OnlineLyricsGateway.instance.fetchLyricsText(
+          title: kwTitle,
+          artist: kwArtist,
+          album: selected.album,
+          durationMs: selected.duration,
+        );
+        prefetchedLyrics ??= await SongMatchService.instance.fetchLyrics(
           title: kwTitle,
           artist: kwArtist,
           album: selected.album,
