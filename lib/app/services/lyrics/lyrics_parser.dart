@@ -11,6 +11,31 @@ class ParsedLyricLine {
 }
 
 class LyricsParser {
+  static final RegExp _metadataLine = RegExp(
+    r'^\[(ti|ar|al|by|offset|re|ve|length|total|hash|sign|kana|language):',
+    caseSensitive: false,
+  );
+  static final RegExp _timeTag = RegExp(r'\[[0-9:.]+\]');
+
+  /// 歌词文本是否含有可用内容（至少一行非空、非元数据的歌词）。
+  ///
+  /// 用于决定「要不要联网补歌词」：NAS 返回空列表自不必说，但缓存或服务端
+  /// 也可能返回「非空却不可用」的文本（只有 BOM、只有 `[ti:]/[ar:]` 头、
+  /// 只有空行），旧逻辑按 `trim().isNotEmpty` 判断会把它当成有歌词，
+  /// 从而永远不触发在线搜索、播放页一直空白。
+  static bool hasUsableContent(String? raw) {
+    final text = (raw ?? '').replaceAll('\uFEFF', '');
+    if (text.trim().isEmpty) return false;
+    for (final rawLine in text.split(RegExp(r'\r?\n'))) {
+      var line = rawLine.trim();
+      if (line.isEmpty) continue;
+      if (_metadataLine.hasMatch(line)) continue;
+      line = line.replaceAll(_timeTag, '').trim();
+      if (line.isNotEmpty) return true;
+    }
+    return false;
+  }
+
   static bool _isInstrumentalNotice(String text) {
     final normalized = text
         .trim()

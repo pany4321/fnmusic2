@@ -58,6 +58,9 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> with SignalsMixin {
   late final _dragSeek = createSignal(true);
   late final _forceKaraoke = createSignal(false);
   late final _miniEnabled = createSignal(true);
+
+  /// 手动「联网搜索歌词」进行中（空状态按钮的忙碌态）。
+  bool _searchingLyrics = false;
   late final _miniAlignment = createSignal('center');
   late final _fontSize = createSignal(16.0);
   late final _activeFontSize = createSignal(20.0);
@@ -532,6 +535,26 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> with SignalsMixin {
     );
   }
 
+  /// 手动联网补歌词：命中后 LyricsService 会写缓存并重新加载当前歌曲，
+  /// 界面通过 snapshotSignal 自动刷新；未命中给出可感知的提示。
+  Future<void> _searchLyricsOnline() async {
+    if (_searchingLyrics) return;
+    setState(() => _searchingLyrics = true);
+    try {
+      final hit = await LyricsService.instance.searchNow();
+      if (!mounted) return;
+      if (!hit) {
+        AppToast.show(
+          context,
+          '未找到歌词，可稍后重试或检查网络',
+          type: ToastType.error,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _searchingLyrics = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -638,6 +661,28 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> with SignalsMixin {
                                 color: onSurface.withValues(alpha: 0.6),
                               ),
                             ),
+                            const SizedBox(height: 12),
+                            // 手动补词入口：NAS 曲库常常完全没有歌词，
+                            // 自动搜索失败（网络抖动/源未收录）时用户可重试。
+                            if (_searchingLyrics)
+                              const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            else
+                              TextButton.icon(
+                                onPressed: _searchLyricsOnline,
+                                icon: const Icon(Icons.cloud_download_outlined),
+                                label: const Text('联网搜索歌词'),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: onSurface.withValues(
+                                    alpha: 0.85,
+                                  ),
+                                ),
+                              ),
                           ],
                         ),
                       );

@@ -71,7 +71,10 @@ class LyricsRepository {
       final file = await _cacheFileForSongId(songId);
       if (!await file.exists()) return null;
       final bytes = await file.readAsBytes();
-      return utf8.decode(bytes, allowMalformed: true);
+      // 剥 BOM：仅含 BOM 的坏缓存会让上层误判「有歌词」而不触发联网搜索。
+      return utf8
+          .decode(bytes, allowMalformed: true)
+          .replaceFirst('\uFEFF', '');
     } catch (_) {
       return null;
     }

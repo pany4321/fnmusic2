@@ -6,6 +6,7 @@ import 'package:flutter_lyric/core/lyric_model.dart' as fl;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:signals/signals.dart';
 
+import '../debug_log_service.dart';
 import '../player_service.dart';
 import '../../state/settings_lyric_auto_search.dart';
 import '../../state/settings_lyric_companion.dart';
@@ -228,7 +229,9 @@ class LyricsService {
       var lrc = await _repo.loadLrc(song);
       if (seq != _loadSeq) return;
 
-      if (lrc == null || lrc.trim().isEmpty) {
+      // 按「是否有可用歌词行」判断而非非空判断：仅 BOM / 只有 [ti:] 头的
+      // 坏缓存或服务端占位文本都会被当作无歌词，从而继续联网补歌词。
+      if (!LyricsParser.hasUsableContent(lrc)) {
         // 无歌词：若开启「播放无歌词音乐时自动搜索」则联网取词。
         // 优先内置在线源（应用内直连网易云/QQ/酷狗/LRCLIB，无需服务端）；
         // 未命中且服务端增强（FnMusicEnhance）可达时，再走数据源插件。
@@ -238,7 +241,7 @@ class LyricsService {
           if (seq != _loadSeq) return;
         }
 
-        if (searched == null || searched.trim().isEmpty) {
+        if (!LyricsParser.hasUsableContent(searched)) {
           snapshot.value = snapshot.value.copyWith(
             status: LyricsLoadStatus.empty,
             song: song,
@@ -255,6 +258,7 @@ class LyricsService {
         lrc = searched;
       }
 
+      if (lrc == null) return;
       final model = LyricsParser.buildModelFromRaw(
         lrc,
         songDuration: (song.durationMs == null)
@@ -298,6 +302,28 @@ class LyricsService {
     }
   }
 
+  /// 手动触发一次联网搜索（播放页「暂无歌词」时的重试/补词入口）。
+  ///
+  /// 不受「自动搜索」开关限制（这是用户显式操作），但仍受「内置在线歌词源」
+  /// 与服务端增强可用性约束。命中后覆盖本地缓存并重新加载当前歌曲。
+  /// 返回是否命中。
+  Future<bool> searchNow() async {
+    final song = _player.currentSong.value;
+    if (song == null) return false;
+    _log('手动搜索歌词: ${song.title} / ${song.artistDisplayName}');
+    final lyrics = await _searchLyricForSong(song);
+    if (!LyricsParser.hasUsableContent(lyrics)) return false;
+    await _repo.saveLrcToCache(song.id, lyrics!, overwrite: true);
+    reloadCurrentSong();
+    return true;
+  }
+
+  /// 调试日志：写入 DebugLogService（设置 → 调试日志可查看）。release 包
+  /// 同样记录，便于用户反馈「为什么没歌词」。
+  void _log(String message) {
+    DebugLogService.instance.add('[Lyrics] $message');
+  }
+
   /// 联网搜索歌曲歌词（「播放无歌词音乐时自动搜索」）。
   ///
   /// 优先内置在线歌词源（网易云/QQ/酷狗/LRCLIB 直连，无需服务端增强）；
@@ -321,10 +347,14 @@ class LyricsService {
         album: album,
         durationMs: duration,
       );
-      if (lyrics != null && lyrics.trim().isNotEmpty) {
-        await _cacheSearchHit(song, lyrics);
+      if (LyricsParser.hasUsableContent(lyrics)) {
+        _log('内置源命中: ${song.title}');
+        await _cacheSearchHit(song, lyrics!);
         return lyrics;
       }
+      _log('内置源未命中: ${song.title} / ${song.artistDisplayName}');
+    } else {
+      _log('内置在线歌词源已关闭，跳过');
     }
 
     // ② 服务端增强数据源插件（已配置地址才可用）。
@@ -336,14 +366,19 @@ class LyricsService {
           album: album,
           duration: duration,
         );
-        if (lyrics != null && lyrics.trim().isNotEmpty) {
-          await _cacheSearchHit(song, lyrics);
+        if (LyricsParser.hasUsableContent(lyrics)) {
+          _log('服务端增强命中: ${song.title}');
+          await _cacheSearchHit(song, lyrics!);
           return lyrics;
         }
       } catch (e) {
         debugPrint('[Lyrics] ${song.title} 数据源插件搜索歌词失败: $e');
+        _log('服务端增强搜索失败: $e');
       }
+    } else {
+      _log('服务端增强不可用（未配置地址），跳过');
     }
+    _log('所有来源均未取到歌词: ${song.title}');
     return null;
   }
 
