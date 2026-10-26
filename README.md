@@ -100,7 +100,7 @@
 
 应用内置车机环境自动识别（`uiMode=CAR` / automotive 特性）与遥控焦点导航，
 并支持方向盘长按快进快退、播放中屏幕常亮、车机语音搜索。
-完整的验证步骤与已知取舍见 [docs/car-adaptation-checklist.md](docs/car-adaptation-checklist.md)。
+完整的验证步骤与已知取舍见 [CAR_ADAPTATION_CHECKLIST.md](CAR_ADAPTATION_CHECKLIST.md)。
 
 ### 测试方式
 
