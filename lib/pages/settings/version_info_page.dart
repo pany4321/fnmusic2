@@ -21,7 +21,7 @@ class VersionInfoPage extends StatefulWidget {
 class _VersionInfoPageState extends State<VersionInfoPage> {
   static const String _appName = '飞牛音乐';
   static const String _iconAsset = 'assets/icon/app_icon.png';
-  static const String _projectUrl = 'https://github.com/kuilei0926/FeiNiuMusic';
+  static const String _projectUrl = 'https://github.com/pany4321/fnmusic2';
 
   final DebugLogService _debugLogs = DebugLogService.instance;
 
