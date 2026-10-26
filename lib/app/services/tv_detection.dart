@@ -25,6 +25,13 @@ class TvDetection {
   /// 是否检测到 TV 环境。由 [ensureLoaded] 在 `runApp` 前填充。
   static final ValueNotifier<bool> result = ValueNotifier(false);
 
+  /// 检测到的大屏遥控设备种类（车机 / TV / 常规触屏）。
+  ///
+  /// 车机与 TV 共用布局与焦点导航，但个别默认值按种类微调
+  /// （如车机界面缩放下限、语音搜索入口）。原生通道不可用时回退 tv。
+  static final ValueNotifier<TvDeviceKind> kind =
+      ValueNotifier(TvDeviceKind.none);
+
   /// 测试覆盖：非 null 时 [detect] 直接返回该值，跳过原生查询。
   static bool? _overrideForTest;
 
@@ -45,6 +52,9 @@ class TvDetection {
   @visibleForTesting
   static void setOverride(bool? value) {
     _overrideForTest = value;
+    if (value != null) {
+      kind.value = value ? TvDeviceKind.tv : TvDeviceKind.none;
+    }
   }
 
   /// 执行 TV 检测。任何异常都不抛出，保证启动链稳定。
@@ -60,14 +70,26 @@ class TvDetection {
     const dartDefine = String.fromEnvironment(_dartDefineKey);
     if (dartDefine == '1') {
       result.value = true;
+      kind.value = TvDeviceKind.tv;
       return true;
     }
 
     if (Platform.isAndroid) {
       try {
+        final kindName = await _channel.invokeMethod<String>('deviceUiKind');
+        if (kindName == 'car' || kindName == 'tv' || kindName == 'none') {
+          kind.value = TvDeviceKind.values.firstWhere(
+            (k) => k.name == kindName,
+          );
+          final detected = kindName != 'none';
+          result.value = detected;
+          return detected;
+        }
+        // 旧版原生侧无 deviceUiKind：回退布尔接口（无法区分车机，按 TV 处理）。
         final value = await _channel.invokeMethod<bool>('isTvDevice');
         if (value != null) {
           result.value = value;
+          kind.value = value ? TvDeviceKind.tv : TvDeviceKind.none;
           return value;
         }
       } catch (_) {
@@ -81,3 +103,7 @@ class TvDetection {
     return false;
   }
 }
+
+
+/// 大屏遥控设备种类。
+enum TvDeviceKind { none, tv, car }

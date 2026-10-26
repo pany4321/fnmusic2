@@ -5,10 +5,15 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
+import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
+
 import '../../app/services/feiniu/api_client.dart';
 import '../../app/services/feiniu/api_models.dart';
 import '../../app/services/feiniu/track_service.dart';
 import '../../app/services/player_service.dart';
+import '../../app/services/voice_search_controller.dart';
+import '../../app/services/voice_search_speech_engine.dart';
+import '../../app/state/settings_layout_state.dart';
 import '../../app/state/song_state.dart';
 import '../../app/theme/app_styles.dart';
 import '../../components/index.dart';
@@ -29,6 +34,12 @@ class SearchPage extends StatefulWidget {
 class _SearchPageState extends State<SearchPage> {
   final TextEditingController _controller = TextEditingController();
   final FeiNiuApiClient _api = FeiNiuApiClient.instance;
+
+  /// 车机/TV 模式的语音搜索（入口可见性见 [_voiceEntryVisible]）。
+  final VoiceSearchController _voice = VoiceSearchController(
+    engine: SpeechToTextEngine(),
+  );
+  bool _voiceEntryVisible = false;
   final FeiNiuTrackService _trackService = FeiNiuTrackService.instance;
   final PlayerService _player = PlayerService.instance;
   SearchCategory _category = SearchCategory.song;
@@ -37,6 +48,46 @@ class _SearchPageState extends State<SearchPage> {
   void initState() {
     super.initState();
     _category = widget.initialCategory;
+    _voiceEntryVisible = _computeVoiceEntryVisible();
+    AppLayoutSettings.tvMode.addListener(_onTvModeChanged);
+    _voice.listening.addListener(_onVoiceStateChanged);
+  }
+
+  bool _computeVoiceEntryVisible() {
+    final mobilePlatform = !kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS);
+    return voiceSearchEntryVisible(
+      tvMode: AppLayoutSettings.tvMode.value,
+      mobilePlatform: mobilePlatform,
+    );
+  }
+
+  void _onTvModeChanged() {
+    final visible = _computeVoiceEntryVisible();
+    if (visible != _voiceEntryVisible) {
+      setState(() => _voiceEntryVisible = visible);
+    }
+  }
+
+  void _onVoiceStateChanged() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _toggleVoiceSearch() async {
+    await _voice.toggle(
+      onText: (text) {
+        _controller.text = text;
+        _controller.selection = TextSelection.collapsed(
+          offset: text.length,
+        );
+        _scheduleSearch(text);
+      },
+      onDone: () {
+        if (mounted) setState(() {});
+      },
+    );
+    if (mounted) setState(() {});
   }
 
   String _query = '';
@@ -56,6 +107,9 @@ class _SearchPageState extends State<SearchPage> {
     _searchCancelToken?.cancel();
     _searchToken++;
     _controller.dispose();
+    AppLayoutSettings.tvMode.removeListener(_onTvModeChanged);
+    _voice.listening.removeListener(_onVoiceStateChanged);
+    _voice.listening.dispose();
     super.dispose();
   }
 
@@ -206,17 +260,35 @@ class _SearchPageState extends State<SearchPage> {
                 onChanged: _scheduleSearch,
                 textInputAction: TextInputAction.search,
                 decoration: InputDecoration(
-                  hintText: '搜索',
+                  hintText: _voice.listening.value ? '请说出要搜索的内容…' : '搜索',
                   prefixIcon: const Icon(Icons.search),
-                  suffixIcon: _query.isEmpty
-                      ? null
-                      : IconButton(
+                  suffixIcon: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_query.isNotEmpty)
+                        IconButton(
                           icon: const Icon(Icons.clear),
                           onPressed: () {
                             _controller.clear();
                             _scheduleSearch('');
                           },
                         ),
+                      if (_voiceEntryVisible)
+                        IconButton(
+                          tooltip: '语音搜索',
+                          // 聆听中红点提示，避免驾驶中误触两次。
+                          icon: Icon(
+                            _voice.listening.value
+                                ? Icons.mic
+                                : Icons.mic_none_rounded,
+                            color: _voice.listening.value
+                                ? theme.colorScheme.error
+                                : null,
+                          ),
+                          onPressed: _toggleVoiceSearch,
+                        ),
+                    ],
+                  ),
                   filled: true,
                   fillColor: theme.appPanelColor,
                   contentPadding: const EdgeInsets.symmetric(

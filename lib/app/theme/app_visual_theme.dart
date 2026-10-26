@@ -68,6 +68,9 @@ ThemeData buildMiuixMaterialTheme(
     focusColor: isTv
         ? scheme.primary.withValues(alpha: 0.34)
         : null,
+    // 车机颠簸环境的最小触点保障：TV/车机模式显式 padded（48dp），
+    // 防止动态主题继承 compact；手机端走默认。
+    materialTapTargetSize: isTv ? MaterialTapTargetSize.padded : null,
     highlightColor: isTv
         ? scheme.primary.withValues(alpha: 0.18)
         : null,

@@ -197,6 +197,7 @@ class MainActivity : AudioServiceActivity() {
         ).setMethodCallHandler { call, result ->
             when (call.method) {
                 "isTvDevice" -> result.success(isTvDevice())
+                "deviceUiKind" -> result.success(deviceUiKind())
                 else -> result.notImplemented()
             }
         }
@@ -384,25 +385,32 @@ class MainActivity : AudioServiceActivity() {
     }
 
     /**
-     * 是否为 TV / 车机环境。
-     *
-     * - uiMode 类型为 TELEVISION（Android TV）或 CAR（车机 UI 模式，含副厂
-     *   车机 ROM 与部分手机驾驶模式）；
-     * - 或声明 LEANBACK 特性（Play Store 判定 TV 的权威信号）；
-     * - 或声明 automotive 设备类型（Android Automotive OS 车机）。
-     *
-     * 命中任一即返回 true：TV 布局 + 旋钮/方向盘方向键焦点导航对两类
-     * 大屏遥控设备同样适用。误判可由 App 内「自动识别 TV / 车机」开关关闭。
+     * 是否为 TV / 车机环境（见 [deviceUiKind]）。
      */
-    private fun isTvDevice(): Boolean {
+    private fun isTvDevice(): Boolean = deviceUiKind() != "none"
+
+    /**
+     * 大屏遥控设备的种类：车机（"car"）/ TV（"tv"）/ 常规触屏（"none"）。
+     *
+     * - car：uiMode 为 CAR（车机 UI 模式 / 副厂车机 ROM / 手机驾驶模式），
+     *   或声明 automotive 设备类型（Android Automotive OS）；
+     * - tv：uiMode 为 TELEVISION 或声明 LEANBACK 特性；
+     * - 车机优先于 TV 判定（Automotive OS 同时可能带 LEANBACK）。
+     *
+     * Dart 侧据此微调车机专属默认值（如界面缩放下限、语音搜索入口）。
+     */
+    private fun deviceUiKind(): String {
         val uiMode = resources.configuration.uiMode and
             android.content.res.Configuration.UI_MODE_TYPE_MASK
-        return uiMode == android.content.res.Configuration.UI_MODE_TYPE_TELEVISION ||
-            uiMode == android.content.res.Configuration.UI_MODE_TYPE_CAR ||
-            packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK) ||
+        val isCar = uiMode == android.content.res.Configuration.UI_MODE_TYPE_CAR ||
             // FEATURE_AUTOMOTIVE 常量（"android.hardware.type.automotive"），
             // 用字面量避免对 API 常量的编译版本依赖。
             packageManager.hasSystemFeature("android.hardware.type.automotive")
+        if (isCar) return "car"
+        val isTv = uiMode == android.content.res.Configuration.UI_MODE_TYPE_TELEVISION ||
+            packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK)
+        if (isTv) return "tv"
+        return "none"
     }
 
     /**

@@ -10,6 +10,8 @@ class AppLayoutSettings {
   static const String _prefsNavigationStyle = 'setting_navigation_style';
   static const String _prefsForceTvMode = 'setting_force_tv_mode';
   static const String _prefsDisableTvAutoDetect = 'setting_disable_tv_auto_detect';
+  static const String _prefsKeepScreenOnWhilePlaying =
+      'setting_keep_screen_on_while_playing';
   static const String _prefsTvUiScaleOverride = 'setting_tv_ui_scale_override';
   static const String _prefsTvEdgeHintShown = 'setting_tv_edge_hint_shown';
   static const String _prefsTrackChangeNotify = 'setting_track_change_notify';
@@ -40,6 +42,13 @@ class AppLayoutSettings {
   /// 个别手机被驾驶模式 App 置成 CAR uiMode 会误入 TV 布局 —— 此开关是
   /// 用户的逃生通道：关闭后仅剩 [forceTvMode] 手动强制生效。
   static final ValueNotifier<bool> disableTvAutoDetect = ValueNotifier(false);
+
+  /// TV/车机模式下播放时保持屏幕常亮（默认开）。
+  ///
+  /// 部分车机有「无交互超时息屏」策略，播放中黑屏会导致无法切歌。
+  /// 仅在 TV/车机模式生效（ScreenAwakeService），手机端行为不变。
+  static final ValueNotifier<bool> keepScreenOnWhilePlaying =
+      ValueNotifier(true);
 
   /// TV 模式：由 [TvDetection] 自动检测，或用户手动强制开启。
   /// 由 [syncTvMode] 计算合并，不直接持久化（forceTvMode 才是持久化来源）。
@@ -228,6 +237,8 @@ class AppLayoutSettings {
     forceTvMode.value = prefs.getBool(_prefsForceTvMode) ?? false;
     disableTvAutoDetect.value =
         prefs.getBool(_prefsDisableTvAutoDetect) ?? false;
+    keepScreenOnWhilePlaying.value =
+        prefs.getBool(_prefsKeepScreenOnWhilePlaying) ?? true;
     final savedTvScale = prefs.getDouble(_prefsTvUiScaleOverride);
     tvUiScaleOverride.value = savedTvScale?.clamp(0.8, 2.0);
     _tvEdgeHintShown = prefs.getBool(_prefsTvEdgeHintShown) ?? false;
@@ -288,6 +299,12 @@ class AppLayoutSettings {
     syncTvMode();
   }
 
+  static Future<void> setKeepScreenOnWhilePlaying(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_prefsKeepScreenOnWhilePlaying, enabled);
+    keepScreenOnWhilePlaying.value = enabled;
+  }
+
   static Future<void> setTvUiScaleOverride(double? scale) async {
     final next = scale?.clamp(0.8, 2.0);
     tvUiScaleOverride.value = next;
@@ -339,6 +356,7 @@ class AppLayoutSettings {
     navigationStyle.value = AppNavigationStyle.bottomBar;
     forceTvMode.value = false;
     disableTvAutoDetect.value = false;
+    keepScreenOnWhilePlaying.value = true;
     tvMode.value = false;
     tvUiScaleOverride.value = null;
     _tvEdgeHintShown = true;

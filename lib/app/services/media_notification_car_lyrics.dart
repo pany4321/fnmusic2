@@ -68,3 +68,19 @@ class CarLyricsPublishGate {
     _lastPublishedAt = null;
   }
 }
+
+/// 车机方向盘/中控硬键长按（AVRCP 长按透传 → MediaSession
+/// `fastForward`/`rewind`）的定长 seek 目标计算：±[delta]，边界钳制在
+/// [0, duration]。[duration] 未知时仅钳负端。
+Duration hardwareSeekTarget({
+  required Duration position,
+  required Duration? duration,
+  required Duration delta,
+}) {
+  final target = position + delta;
+  if (target < Duration.zero) return Duration.zero;
+  if (duration != null && duration > Duration.zero && target > duration) {
+    return duration;
+  }
+  return target;
+}

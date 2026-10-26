@@ -51,6 +51,8 @@
 	</array>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>用于需要麦克风的功能（如录音、语音识别）</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>用于语音搜索歌曲（车机/TV 模式）</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>用于选择本地图片作为歌曲封面</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>

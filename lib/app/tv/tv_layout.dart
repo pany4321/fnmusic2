@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 
 import '../state/settings_layout_state.dart';
 import 'tv_grid_delegate.dart';
+import '../services/tv_detection.dart';
 
 /// TV 端布局辅助（10-foot UI）。
 ///
@@ -16,6 +17,11 @@ class TvLayout {
         (TvUiScaleScope.maybeOf(context)?.unscaledSize ??
                 MediaQuery.sizeOf(context))
             .shortestSide;
+    // 车机观看距离（60–100cm）虽比 TV 近，但行驶颠簸 + 余光操作要求更大的
+    // 默认控件；用户未手动设置缩放时车机下限提到 1.1。
+    if (TvDetection.kind.value == TvDeviceKind.car) {
+      return (shortestSide / 720).clamp(1.1, 1.4);
+    }
     return (shortestSide / 720).clamp(1.0, 1.3);
   }
 

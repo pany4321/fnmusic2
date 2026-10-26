@@ -395,6 +395,34 @@ class _AppAppearanceSettingsPageState extends State<AppAppearanceSettingsPage> {
               ),
               ValueListenableBuilder<bool>(
                 valueListenable: AppLayoutSettings.tvMode,
+                builder: (context, tvActive, _) {
+                  if (!tvActive) return const SizedBox.shrink();
+                  return ValueListenableBuilder<bool>(
+                    valueListenable: AppLayoutSettings.keepScreenOnWhilePlaying,
+                    builder: (context, keepAwake, _) {
+                      return Column(
+                        children: [
+                          const Divider(height: 1),
+                          AppSettingSwitchTile(
+                            title: '播放时保持屏幕常亮',
+                            subtitle: keepAwake
+                                ? '车机/TV 播放中不熄屏，便于随时切歌'
+                                : '播放中允许按系统策略熄屏',
+                            value: keepAwake,
+                            onChanged: (value) {
+                              AppLayoutSettings.setKeepScreenOnWhilePlaying(
+                                value,
+                              );
+                            },
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                },
+              ),
+              ValueListenableBuilder<bool>(
+                valueListenable: AppLayoutSettings.tvMode,
                 builder: (context, enabled, _) {
                   if (!enabled) return const SizedBox.shrink();
                   return ValueListenableBuilder<double?>(

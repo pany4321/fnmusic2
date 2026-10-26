@@ -141,7 +141,10 @@ class FeiNiuApiClient {
 
   Dio _dio = Dio(
     BaseOptions(
-      connectTimeout: const Duration(seconds: 15),
+      // 连接超时从 15s 收紧到 8s：驾驶中（隧道/热点切换）过长的连接等待
+      // 比报错更伤体验；建连失败由 [_get] 做一次快速重试兜底。慢速公网
+      // 中继场景的接收阶段不受影响（receiveTimeout 仍为 30s）。
+      connectTimeout: const Duration(seconds: 8),
       receiveTimeout: const Duration(seconds: 30),
       sendTimeout: const Duration(seconds: 15),
       followRedirects: false,
@@ -384,6 +387,10 @@ class FeiNiuApiClient {
     Map<String, dynamic>? queryParameters,
     CancelToken? cancelToken,
   }) async {
+    // 注意：不做传输层自动重试 —— 首页等模块已有「失败模块单独重试」的
+    // 应用层语义（见 home_progressive_loading_test），传输层重试会让请求
+    // 翻倍并破坏计数断言。驾驶场景的断网抖动由 connectTimeout 收紧 +
+    // 模块级重试兜底。
     final response = await _dio.get(
       _url(path),
       queryParameters: queryParameters,

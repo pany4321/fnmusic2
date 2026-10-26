@@ -974,10 +974,14 @@ class _FeiNiuAudioHandler extends BaseAudioHandler
         : AudioProcessingState.ready;
     return PlaybackState(
       controls: controls,
+      // seekForward/seekBackward：车机方向盘长按上/下曲键走
+      // AVRCP 长按透传 → fastForward/rewind，声明能力后硬键才会派发到会话。
       systemActions: const {
         MediaAction.seek,
         MediaAction.skipToNext,
         MediaAction.skipToPrevious,
+        MediaAction.seekForward,
+        MediaAction.seekBackward,
       },
       androidCompactActionIndices: const [0, 1, 2],
       processingState: processing,
@@ -1325,6 +1329,30 @@ class _FeiNiuAudioHandler extends BaseAudioHandler
   Future<void> seek(Duration position) {
     _debugLog('seek action ${position.inMilliseconds}ms');
     return player.seek(position);
+  }
+
+  /// 车机方向盘/中控硬键长按（AVRCP 长按透传 → MediaSession
+  /// fastForward/rewind）：定长 ±10s seek，边界钳制。
+  static const Duration _hardwareSeekStep = Duration(seconds: 10);
+
+  @override
+  Future<void> fastForward() {
+    _debugLog('fastForward action');
+    return _seekByHardwareStep(_hardwareSeekStep);
+  }
+
+  @override
+  Future<void> rewind() {
+    _debugLog('rewind action');
+    return _seekByHardwareStep(-_hardwareSeekStep);
+  }
+
+  Future<void> _seekByHardwareStep(Duration delta) {
+    return player.seek(hardwareSeekTarget(
+      position: player.position.value,
+      duration: player.duration.value,
+      delta: delta,
+    ));
   }
 
   @override

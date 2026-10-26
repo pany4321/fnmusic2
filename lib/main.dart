@@ -17,6 +17,7 @@ import 'app/services/backup/backup_service.dart';
 import 'app/services/debug_log_service.dart';
 import 'app/services/desktop_tray_service.dart';
 import 'app/services/fn_auto_reconnect_service.dart';
+import 'app/services/screen_awake_service.dart';
 import 'app/services/island_lyric_service.dart';
 import 'app/services/macos_status_bar_service.dart';
 import 'app/services/macos_app_exit_service.dart';
@@ -106,6 +107,9 @@ Future<void> main(List<String> args) async {
   // 合并自动检测 + 设置页手动强制开关，写入 tvMode。
   TvDetectionAutoValue.value = isTvDevice;
   AppLayoutSettings.syncTvMode();
+  // TV/车机模式播放中保持屏幕常亮（部分车机无交互超时息屏策略会导致
+  // 播放中黑屏无法切歌）。内部自行监听播放/模式/开关变化。
+  ScreenAwakeService.instance.init();
   // 按设备类型锁定方向：TV 恒横屏；平板（或手动平板模式）四方向自由旋转；
   // 手机锁竖屏。运行中开关切换由 app.dart 的 _TvOrientationSync 负责再应用。
   await SystemChrome.setPreferredOrientations(
