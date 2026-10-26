@@ -262,6 +262,34 @@ void main() {
       expect(deepRan, isFalse);
     });
 
+    test('繁体标题全部落空时，用简体重试并命中', () async {
+      // 模拟港台老专辑：本地标签是繁体，源只认简体。
+      final source = _TraditionalOnlySource();
+      final coordinator = LyricsMatchCoordinator(sources: [source]);
+      final result = await coordinator.match(const OnlineLyricsRequest(
+        title: '春風秋雨',
+        artists: ['葉蒨文'],
+        durationMs: 240000,
+      ));
+      expect(result.found, isNotNull, reason: '简体重试应命中');
+      // 至少一次请求带简体标题或简体关键词。
+      final hasSimplifiedAttempt = source.searchAttempts.any(
+        (a) => a.$1.contains('春风秋雨') || a.$2.contains('春风秋雨'),
+      );
+      expect(hasSimplifiedAttempt, isTrue,
+          reason: '实际请求: ${source.searchAttempts}');
+    });
+
+    test('非繁体文本不触发额外重试（避免无谓请求）', () async {
+      final source = _FakeSource(OnlineSourceId.kugou, hit: true);
+      final coordinator = LyricsMatchCoordinator(sources: [source]);
+      await coordinator.match(const OnlineLyricsRequest(
+        title: '晴天',
+        artists: ['周杰伦'],
+      ));
+      expect(source.searchAttempts, hasLength(1));
+    });
+
     test('主关键词无合格候选时用纯标题重试', () async {
       final keywords = <String>[];
       final source = _FakeSource(
@@ -295,12 +323,16 @@ class _FakeSource extends OnlineLyricsSource {
   void Function()? onSearch;
   void Function(String)? searchKeywordRecorder;
 
+  /// 记录每次搜索的 (keyword, request.title)，用于断言重试策略。
+  final List<(String, String)> searchAttempts = [];
+
   @override
   OnlineSourceId get id => sourceId;
 
   @override
   Future<List<OnlineLyricsCandidate>> search(LyricsSearchQuery query) async {
     searchKeywordRecorder?.call(query.keyword);
+    searchAttempts.add((query.keyword, query.request.title));
     onSearch?.call();
     final failure = this.failure;
     if (failure != null) throw failure;
@@ -319,5 +351,37 @@ class _FakeSource extends OnlineLyricsSource {
   @override
   Future<OnlineLyricsDocument> fetch(OnlineLyricsCandidate candidate) async {
     return parseLyricsDocument('[00:01.00]line1\n[00:02.00]line2');
+  }
+}
+
+/// 只返回简体候选的假源：繁体查询命不中，简体查询才命中。
+class _TraditionalOnlySource extends OnlineLyricsSource {
+  final List<(String, String)> searchAttempts = [];
+
+  @override
+  OnlineSourceId get id => OnlineSourceId.netease;
+
+  @override
+  Future<List<OnlineLyricsCandidate>> search(LyricsSearchQuery query) async {
+    searchAttempts.add((query.keyword, query.request.title));
+    final simplifiedTitle = query.request.title;
+    // 只有简体输入才返回候选（模拟中文平台对繁体召回差）。
+    if (simplifiedTitle.contains('风')) {
+      return [
+        OnlineLyricsCandidate(
+          source: id,
+          remoteId: 'cn-1',
+          title: simplifiedTitle,
+          artists: query.request.artists,
+          durationMs: query.request.durationMs,
+        ),
+      ];
+    }
+    return const [];
+  }
+
+  @override
+  Future<OnlineLyricsDocument> fetch(OnlineLyricsCandidate candidate) async {
+    return parseLyricsDocument('[00:01.00]第一行\n[00:02.00]第二行');
   }
 }

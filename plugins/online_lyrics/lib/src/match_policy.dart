@@ -11,6 +11,7 @@
 library;
 
 import 'models.dart';
+import 'traditional_to_simplified.dart';
 
 class LyricsMatchPolicy {
   /// 常规入选门槛：综合分。
@@ -386,7 +387,11 @@ class _VersionFlag {
   ];
 }
 
-/// 匹配用归一化：全角→半角、小写、连续空白折叠。
+/// 匹配用归一化：全角→半角、**繁→简**、小写、连续空白折叠。
+///
+/// 繁简归一化是必须的：港台发行/老专辑的本地标签常是繁体，而在线库多为
+/// 简体。若只在检索时转简体、评分时仍按原文比较，「春風秋雨」与在线
+/// 「春风秋雨」相似度只有 50 分，会被入选闸门直接拒掉——参数再对也白搭。
 ///
 /// Java 版用 NFKC；Dart 无内建 NFKC，这里覆盖标题/歌手比对里唯一实际
 /// 相关的部分（全角 ASCII 区 U+FF01–FF5E 与全角空格）。
@@ -401,10 +406,10 @@ String normalizeForMatch(String value) {
       buffer.writeCharCode(code);
     }
   }
-  return buffer
-      .toString()
-      .toLowerCase()
-      .replaceAll(RegExp(r'\s+'), ' ')
+  return toSimplified(buffer
+          .toString()
+          .toLowerCase()
+          .replaceAll(RegExp(r'\s+'), ' '))
       .trim();
 }
 

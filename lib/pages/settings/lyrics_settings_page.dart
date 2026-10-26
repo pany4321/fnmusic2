@@ -5,6 +5,7 @@ import 'package:signals_flutter/signals_flutter.dart' hide computed;
 import '../../app/services/island_lyric_service.dart';
 import '../../app/services/lyrics/lyrics_service.dart';
 import '../../app/state/settings_island_lyric.dart';
+import '../../app/state/settings_lyric_auto_search.dart';
 import '../../app/state/settings_state.dart';
 import '../../components/index.dart';
 
@@ -167,6 +168,68 @@ class _LyricsSettingsPageState extends State<LyricsSettingsPage>
           body: ListView(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
             children: [
+              // 在线歌词：NAS 曲库常常完全没有歌词，联网取词是唯一来源。
+              // 从「元数据管理」移到这里 —— 那边整段被服务端增强的可达性
+              // 门控（未配置 FnMusicEnhance 时整块隐藏），导致没有后端的
+              // 用户根本看不到这个开关。
+              AppSettingSection(
+                title: '在线歌词',
+                children: [
+                  ValueListenableBuilder<bool>(
+                    valueListenable: LyricAutoSearchSettings.enabled,
+                    builder: (context, enabled, _) {
+                      return Column(
+                        children: [
+                          AppSettingSwitchTile(
+                            title: '播放无歌词时自动搜索',
+                            subtitle: enabled
+                                ? '无歌词时联网搜索（内置源优先，无需服务端）'
+                                : '关闭后仅使用 NAS 自带歌词与本地缓存',
+                            value: enabled,
+                            onChanged: (value) =>
+                                LyricAutoSearchSettings.setEnabled(value),
+                          ),
+                          if (enabled) ...[
+                            const Divider(height: 1),
+                            ValueListenableBuilder<bool>(
+                              valueListenable:
+                                  LyricAutoSearchSettings.useBuiltinOnline,
+                              builder: (context, builtin, _) {
+                                return AppSettingSwitchTile(
+                                  title: '内置在线歌词源',
+                                  subtitle: builtin
+                                      ? '直连网易云/QQ/酷狗/LRCLIB，支持逐字、翻译与繁简转换'
+                                      : '仅通过服务端增强数据源搜索',
+                                  value: builtin,
+                                  onChanged: (value) =>
+                                      LyricAutoSearchSettings
+                                          .setUseBuiltinOnline(value),
+                                );
+                              },
+                            ),
+                            const Divider(height: 1),
+                            ValueListenableBuilder<bool>(
+                              valueListenable:
+                                  LyricAutoSearchSettings.writeBack,
+                              builder: (context, writeBack, _) {
+                                return AppSettingSwitchTile(
+                                  title: '搜索到后回写到 NAS',
+                                  subtitle: writeBack
+                                      ? '命中歌词写入服务端增强，其他设备可用（需已配置）'
+                                      : '仅本地缓存，不回写服务器',
+                                  value: writeBack,
+                                  onChanged: (value) =>
+                                      LyricAutoSearchSettings.setWriteBack(value),
+                                );
+                              },
+                            ),
+                          ],
+                        ],
+                      );
+                    },
+                  ),
+                ],
+              ),
               AppSettingSection(
                 title: '状态栏歌词',
                 children: [

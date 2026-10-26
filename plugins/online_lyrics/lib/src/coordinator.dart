@@ -14,6 +14,7 @@ library;
 import 'async_race.dart';
 import 'match_policy.dart';
 import 'models.dart';
+import 'traditional_to_simplified.dart';
 
 Duration _deadline(int ms) => Duration(milliseconds: ms);
 
@@ -172,10 +173,17 @@ class LyricsMatchCoordinator {
     OnlineLyricsRequest request,
     int timeoutMs,
   ) async {
-    List<OnlineLyricsCandidate> primaryCandidates;
+    final collected = <OnlineLyricsCandidate>[];
+    final seen = <String>{};
+    void merge(List<OnlineLyricsCandidate> rows) {
+      for (final row in rows) {
+        if (seen.add('${row.source}:${row.remoteId}')) collected.add(row);
+      }
+    }
+
+    // ① 主关键词「歌手 - 标题」。
     try {
-      primaryCandidates =
-          await _search(source, primaryKeyword, request, timeoutMs);
+      merge(await _search(source, primaryKeyword, request, timeoutMs));
     } on LyricsTransportException {
       return _SearchOutcome(source, const [],
           LyricsFailureKind.networkFailure);
@@ -187,34 +195,80 @@ class LyricsMatchCoordinator {
           source, const [], LyricsFailureKind.invalidResponse);
     }
 
-    final shouldRetryWithTitle =
-        primaryKeyword != request.title &&
-            source.supportsKeywordVariants &&
-            scorer.score(request, primaryCandidates).isEmpty;
-    if (!shouldRetryWithTitle) {
-      return _SearchOutcome(source, primaryCandidates);
+    // ② 纯标题重试：部分源（QQ 桌面搜索）带歌手会把结果带偏。
+    LyricsFailureKind? failure;
+    if (primaryKeyword != request.title &&
+        source.supportsKeywordVariants &&
+        scorer.score(request, collected).isEmpty) {
+      try {
+        merge(await _search(source, request.title, request, timeoutMs));
+      } on LyricsTransportException {
+        failure = _combineFailure(failure, LyricsFailureKind.networkFailure);
+      } on LyricsPayloadException {
+        failure = _combineFailure(failure, LyricsFailureKind.invalidResponse);
+      } catch (e) {
+        failure = _combineFailure(failure, LyricsFailureKind.invalidResponse);
+      }
     }
-    try {
-      final retryCandidates =
-          await _search(source, request.title, request, timeoutMs);
-      final merged = [...primaryCandidates, ...retryCandidates];
-      final seen = <String>{};
-      return _SearchOutcome(
-        source,
-        merged
-            .where((c) => seen.add('${c.source}:${c.remoteId}'))
-            .toList(),
-      );
-    } on LyricsTransportException {
-      return _SearchOutcome(
-          source, primaryCandidates, LyricsFailureKind.networkFailure);
-    } on LyricsPayloadException {
-      return _SearchOutcome(
-          source, primaryCandidates, LyricsFailureKind.invalidResponse);
-    } catch (e) {
-      return _SearchOutcome(
-          source, primaryCandidates, LyricsFailureKind.invalidResponse);
+
+    // ③ 繁→简重试（召回兜底）。
+    //
+    // 港台发行/老专辑的标签常是繁体（春風秋雨、葉蒨文），中文平台的搜索
+    // 对繁体输入召回很差 —— 实测这类曲目四个源全部落空，换成简体后能命中。
+    // 只在前两轮都没产生合格候选、且文本确实含繁体字时才发这一次请求；
+    // 转换同时作用于关键词与 request（QQ 桌面搜索只吃标题，必须转 title）。
+    if (scorer.score(request, collected).isEmpty) {
+      final simplifiedRequest = _simplifiedRequest(request);
+      final simplifiedKeyword = toSimplified(primaryKeyword);
+      final keywordChanged = simplifiedKeyword != primaryKeyword;
+      final requestChanged = !identical(simplifiedRequest, request);
+      if (keywordChanged || requestChanged) {
+        try {
+          merge(await _search(
+            source,
+            keywordChanged ? simplifiedKeyword : simplifiedRequest.title,
+            simplifiedRequest,
+            timeoutMs,
+          ));
+        } on LyricsTransportException {
+          failure =
+              _combineFailure(failure, LyricsFailureKind.networkFailure);
+        } on LyricsPayloadException {
+          failure =
+              _combineFailure(failure, LyricsFailureKind.invalidResponse);
+        } catch (e) {
+          failure =
+              _combineFailure(failure, LyricsFailureKind.invalidResponse);
+        }
+      }
     }
+    return _SearchOutcome(source, collected, failure);
+  }
+
+  /// 繁→简后的请求副本；无需转换时原样返回同一实例（调用方用
+  /// `identical` 判断是否需要重试）。
+  OnlineLyricsRequest _simplifiedRequest(OnlineLyricsRequest request) {
+    final title = toSimplified(request.title);
+    final artists = request.artists.map(toSimplified).toList();
+    final album = request.album == null ? null : toSimplified(request.album!);
+    final unchanged = title == request.title &&
+        album == request.album &&
+        _listEquals(artists, request.artists);
+    if (unchanged) return request;
+    return OnlineLyricsRequest(
+      title: title,
+      artists: artists,
+      album: album,
+      durationMs: request.durationMs,
+    );
+  }
+
+  bool _listEquals(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
   }
 
   Future<List<OnlineLyricsCandidate>> _search(
